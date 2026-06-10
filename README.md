@@ -1,16 +1,21 @@
 # Jobs Agent
 
-An autonomous AI job search agent that scrapes 20+ job sources (LinkedIn + VC portfolio boards), intelligently filters for AI/ML roles, scores them with AI, and learns from results to improve search strategies over time.
+An autonomous AI job search agent that scrapes 20+ job sources (LinkedIn + VC portfolio boards), intelligently filters for roles you want (configurable on the settings page, it is AI/ML roles by default), scores them with AI, and learns from results to improve search strategies over time.
+
+<img width="1263" height="615" alt="image" src="https://github.com/user-attachments/assets/5ab56b70-cf8c-4b79-b461-417f7a77ccfe" />
+<img width="1213" height="618" alt="image" src="https://github.com/user-attachments/assets/ad7b1ff8-68d4-44d4-8303-d6f1126e564f" />
+<img width="1199" height="623" alt="image" src="https://github.com/user-attachments/assets/dc89a046-503d-499e-8229-6cfee4e47a3d" />
+<img width="1227" height="626" alt="image" src="https://github.com/user-attachments/assets/1a9491e3-5b78-4f43-b750-249b24e4f740" />
+
 
 ## Features
 
-- **20+ Job Sources** — LinkedIn (7 keyword searches) + 19 VC portfolio boards (a16z, Sequoia, Accel, Battery, General Catalyst, and more)
+- **20+ Job Sources** — LinkedIn (7 keyword searches - configurable) + 19 VC portfolio boards (a16z, Sequoia, Accel, Battery, General Catalyst, and more)
 - **AI Scoring** — Each job is scored 1-10 by Groq LLM based on your resume and preferences
 - **Smart Filters** — Automatically filters senior roles, hybrid positions, and non-AI titles
 - **Autonomous Agent** — LLM-driven decision loop that decides what to search, when to research companies, when to email you, and when to reflect on strategy performance
 - **Chat Interface** — Ask questions about your saved jobs, get stats, or trigger agent cycles
 - **Settings Page** — Configure API keys, search keywords, and upload your resume via the dashboard
-- **Email Digests** — Optional SMTP-based notifications for top-matching roles
 - **Web Dashboard** — Filter, sort, and browse all jobs with AI scores
 
 ## Quick Start
@@ -18,7 +23,7 @@ An autonomous AI job search agent that scrapes 20+ job sources (LinkedIn + VC po
 ### Prerequisites
 
 - Python 3.10+
-- [Groq API key](https://console.groq.com) (free tier available)
+- [Groq API key](https://console.groq.com) (free tier available, need to input it manually to .env or set it on the settings page)
 
 ### Installation
 
