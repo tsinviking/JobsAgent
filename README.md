@@ -122,7 +122,3 @@ Strategy priority adjusts automatically:
 | Scraping | httpx + BeautifulSoup + Playwright |
 | AI | Groq API |
 | Scheduling | APScheduler |
-
-## License
-
-MIT
