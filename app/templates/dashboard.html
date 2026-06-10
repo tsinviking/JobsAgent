@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+    <h1>Jobs</h1>
+    <div class="header-actions">
+        <button class="btn btn-primary btn-sm" hx-post="/api/scrape" hx-swap="outerHTML" hx-target="this">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+            Scrape
+        </button>
+    </div>
+</div>
+
+{% if last_log %}
+<div class="last-scrape">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    <span>Last scrape: <strong>{{ last_log.finished_at.strftime('%Y-%m-%d %H:%M') if last_log.finished_at else 'Running...' }}</strong></span>
+    <span>&middot; {{ last_log.jobs_found }} found</span>
+    <span>&middot; {{ last_log.jobs_new }} new</span>
+    <span class="status-{{ last_log.status }}">&middot; {{ last_log.status }}</span>
+</div>
+{% endif %}
+
+<div class="filters">
+    <form method="get" action="/" class="filter-form">
+        <input type="text" name="search" placeholder="Search title or company..." value="{{ active_search }}" class="input">
+        <select name="source" class="select">
+            <option value="">All sources</option>
+            <option value="linkedin" {% if active_source == 'linkedin' %}selected{% endif %}>LinkedIn</option>
+            {% for s in sources %}
+                {% if s and s != 'linkedin' %}
+                <option value="{{ s }}" {% if active_source == s %}selected{% endif %}>{{ s }}</option>
+                {% endif %}
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm">Filter</button>
+        {% if active_search or active_source %}
+        <a href="/" class="btn btn-sm">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="job-count">{{ jobs|length }} job{% if jobs|length != 1 %}s{% endif %}</div>
+
+<div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr>
+                <th><a href="?sort=title&order={% if active_sort == 'title' and active_order == 'asc' %}desc{% else %}asc{% endif %}{% if active_search %}&search={{ active_search }}{% endif %}{% if active_source %}&source={{ active_source }}{% endif %}">Title</a></th>
+                <th>Company</th>
+                <th>Location</th>
+                <th>Remote</th>
+                <th>Source</th>
+                <th><a href="?sort=ai_score&order={% if active_sort == 'ai_score' and active_order == 'desc' %}asc{% else %}desc{% endif %}{% if active_search %}&search={{ active_search }}{% endif %}{% if active_source %}&source={{ active_source }}{% endif %}">AI Score</a></th>
+                <th><a href="?sort=created_at&order={% if active_sort == 'created_at' and active_order == 'desc' %}asc{% else %}desc{% endif %}{% if active_search %}&search={{ active_search }}{% endif %}{% if active_source %}&source={{ active_source }}{% endif %}">Found</a></th>
+                <th>Link</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr>
+                <td>{{ job.title }}</td>
+                <td>{{ job.company }}</td>
+                <td>{{ job.location }}</td>
+                <td><span class="badge badge-{{ 'remote' if job.remote_status == 'Remote' else 'hybrid' if job.remote_status == 'Hybrid' else 'onsite' }}">{{ job.remote_status or 'N/A' }}</span></td>
+                <td><span class="badge badge-source">{{ job.source }}</span></td>
+                <td>
+                    {% if job.ai_score is not none %}
+                    <span class="score score-{% if job.ai_score >= 7 %}high{% elif job.ai_score >= 4 %}mid{% else %}low{% endif %}">
+                        {{ job.ai_score }}/10
+                    </span>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td style="color: var(--text-sec)">{{ job.created_at.strftime('%m/%d') }}</td>
+                <td><a href="{{ job.url }}" target="_blank" class="link">Open →</a></td>
+            </tr>
+            {% if job.ai_recommendation %}
+            <tr class="rec-row">
+                <td colspan="8">{{ job.ai_recommendation }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

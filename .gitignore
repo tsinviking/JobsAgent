@@ -1,0 +1,23 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Database
+data/*.db
+
+# Logs
+*.log
+
+# Dev notes (not for public repo)
+MEMORY.md
+updates.md
+
+# OS
+.DS_Store
+Thumbs.db

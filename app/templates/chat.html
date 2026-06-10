@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block extrahead %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+{% endblock %}
+{% block content %}
+
+<div class="chat-wrap" x-data="chatApp()">
+    <div class="chat-msgs" x-ref="msgs">
+        <template x-if="msgs.length === 0">
+            <div class="chat-welcome">
+                <div class="wlcm-icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M5 12h14"/><path d="M12 12v8"/><circle cx="12" cy="20" r="2"/></svg>
+                </div>
+                <h2>Jobs Agent</h2>
+                <p>Ask me about your job search, saved roles, or company research.</p>
+                <div class="wlcm-sugg">
+                    <button class="sugg" @click="fill('Show me my saved jobs')">Show me my saved jobs</button>
+                    <button class="sugg" @click="fill('What companies are hiring for AI roles?')">What companies are hiring for AI roles?</button>
+                    <button class="sugg" @click="fill('Summarize my last agent cycle')">Summarize my last agent cycle</button>
+                </div>
+            </div>
+        </template>
+        <template x-for="(m, i) in msgs" :key="i">
+            <div class="msg" :class="m.role">
+                <div class="msg-avatar">
+                    <template x-if="m.role === 'assistant'">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M5 12h14"/><path d="M12 12v8"/><circle cx="12" cy="20" r="2"/></svg>
+                    </template>
+                    <template x-if="m.role === 'user'">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4 3.5-7 8-7s8 3 8 7"/></svg>
+                    </template>
+                </div>
+                <div class="msg-body">
+                    <div class="msg-name" x-text="m.role === 'user' ? 'You' : 'Jobs Agent'"></div>
+                    <div class="msg-content" x-html="m.html"></div>
+                </div>
+            </div>
+        </template>
+        <div x-show="busy" class="msg assistant">
+            <div class="msg-avatar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M5 12h14"/><path d="M12 12v8"/><circle cx="12" cy="20" r="2"/></svg>
+            </div>
+            <div class="msg-body">
+                <div class="msg-name">Jobs Agent</div>
+                <div class="msg-content"><span class="loader"><span></span><span></span><span></span></span></div>
+            </div>
+        </div>
+        <div class="chat-bottom" x-ref="bottom"></div>
+    </div>
+
+    <div class="chat-foot">
+        {% if not ai_configured %}
+        <div class="bar-warn">GROQ_API_KEY not set — add to .env</div>
+        {% endif %}
+        <div class="bar-inner">
+            <textarea x-model="text" @keydown="onkey" placeholder="Ask about your jobs..." rows="1" :disabled="busy" class="bar-input" x-ref="input"></textarea>
+            <button class="bar-btn" @click="send()" :disabled="busy || !text.trim()" :title="busy ? 'Waiting...' : 'Send message'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+            </button>
+        </div>
+        <p class="bar-footnote">AI can make mistakes. Verify important info.</p>
+    </div>
+</div>
+
+<script>
+function chatApp() {
+    return {
+        msgs: [],
+        text: '',
+        busy: false,
+        async init() {
+            try {
+                const r = await fetch('/api/chat/messages');
+                if (!r.ok) throw new Error('fetch failed');
+                const data = await r.json();
+                this.msgs = data.map(m => ({
+                    role: m.role,
+                    html: marked.parse(m.content || ''),
+                }));
+            } catch {}
+            this.scroll();
+            this.$refs.input?.focus();
+        },
+        scroll() {
+            this.$nextTick(() => {
+                const el = this.$refs.bottom;
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+            });
+        },
+        fill(t) {
+            this.text = t;
+            this.$refs.input?.focus();
+        },
+        async send() {
+            const t = this.text.trim();
+            if (!t || this.busy) return;
+            this.text = '';
+            this.busy = true;
+            this.msgs.push({ role: 'user', html: marked.parse(t) });
+            this.scroll();
+            try {
+                const r = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: t }),
+                });
+                if (!r.ok) throw new Error('API error');
+                const d = await r.json();
+                const reply = d.assistant?.content || d.reply || JSON.stringify(d);
+                this.msgs.push({ role: 'assistant', html: marked.parse(reply) });
+            } catch {
+                this.msgs.push({ role: 'assistant', html: '<span class="err">Failed to get response. The server may be down.</span>' });
+            }
+            this.busy = false;
+            this.scroll();
+        },
+        onkey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.send();
+            }
+        },
+    };
+}
+</script>
+
+{% endblock %}

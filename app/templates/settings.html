@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+    <h1>Settings</h1>
+</div>
+
+<div x-data="settingsApp()" x-init="init()">
+    <!-- GROQ API Key -->
+    <div class="card">
+        <div class="card-hdr">
+            <h3>API Key</h3>
+            <span class="badge" :class="groqOk ? 'badge-success' : 'badge-error'" x-text="groqOk ? 'Connected' : 'Not set'"></span>
+        </div>
+        <p class="card-desc">Your Groq API key is stored locally and never shared.</p>
+        <div class="form-row">
+            <input type="password" x-model="groqKey" placeholder="gsk_..." class="input" style="flex:1;max-width:400px;font-family:var(--font-mono);font-size:13px">
+            <button class="btn btn-primary btn-sm" @click="saveGroq()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save'"></button>
+        </div>
+        <p class="form-msg" x-show="groqMsg" x-text="groqMsg" :class="groqMsgOk ? 'msg-ok' : 'msg-err'"></p>
+    </div>
+
+    <!-- Search Keywords -->
+    <div class="card">
+        <div class="card-hdr">
+            <h3>Search Keywords ({{ keywords.length }})</h3>
+        </div>
+        <p class="card-desc">Keywords used by the agent to find jobs.</p>
+        <div class="kw-list" x-show="keywords.length">
+            <template x-for="(kw, i) in keywords" :key="i">
+                <span class="kw-chip">
+                    <span x-text="kw"></span>
+                    <button class="kw-del" @click="removeKw(kw)" :disabled="saving" title="Remove">&times;</button>
+                </span>
+            </template>
+        </div>
+        <div class="form-row" style="margin-top:12px">
+            <input type="text" x-model="newKw" @keydown="if($event.key==='Enter'){ $event.preventDefault(); addKw() }" placeholder="Add keyword..." class="input" style="flex:1;max-width:300px">
+            <button class="btn btn-sm" @click="addKw()" :disabled="saving || !newKw.trim()">Add</button>
+        </div>
+        <p class="form-msg" x-show="kwMsg" x-text="kwMsg" :class="kwMsgOk ? 'msg-ok' : 'msg-err'"></p>
+    </div>
+
+    <!-- Resume Upload -->
+    <div class="card">
+        <div class="card-hdr">
+            <h3>Resume</h3>
+            <span class="badge" :class="resumeLen > 0 ? 'badge-success' : 'badge-error'" x-text="resumeLen > 0 ? (resumeLen + ' chars') : 'Not uploaded'"></span>
+        </div>
+        <p class="card-desc">Upload a PDF resume for AI-powered job matching.</p>
+
+        <div class="upload-zone" :class="{ 'has-file': resumeLen > 0, 'dragover': dragging }" @dragover.prevent="dragging=true" @dragleave.prevent="dragging=false" @drop.prevent="handleDrop($event)">
+            <template x-if="resumeLen === 0">
+                <div class="upload-empty">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                    <p>Drop your resume PDF here, or <strong>browse</strong></p>
+                    <input type="file" accept=".pdf" @change="handleFile($event)" class="upload-input">
+                </div>
+            </template>
+            <template x-if="resumeLen > 0">
+                <div class="upload-has">
+                    <div class="upload-preview">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span x-text="'resume.pdf (' + resumeLen + ' chars)'"></span>
+                    </div>
+                    <div class="upload-actions">
+                        <button class="btn btn-sm" @click="uploadEl=$el.previousElementSibling.querySelector('input'); uploadEl.click()">Replace</button>
+                        <button class="btn btn-sm" style="color:var(--red)" @click="deleteResume()" :disabled="saving">Remove</button>
+                    </div>
+                    <input type="file" accept=".pdf" @change="handleFile($event)" style="display:none">
+                </div>
+            </template>
+        </div>
+        <p class="form-msg" x-show="resumeMsg" x-text="resumeMsg" :class="resumeMsgOk ? 'msg-ok' : 'msg-err'"></p>
+    </div>
+
+    <!-- Job Sources -->
+    <div class="card">
+        <div class="card-hdr">
+            <h3>Job Sources ({{ vc_boards|length }})</h3>
+        </div>
+        <p class="card-desc">VC-backed company boards the agent monitors.</p>
+        <div class="source-grid">
+            {% for slug, config in vc_boards.items() %}
+            <div class="source-item">
+                <strong>{{ slug }}</strong>
+                <span class="badge badge-source">{{ config.type }}</span>
+                <a href="{{ config.url }}" target="_blank" class="link">Visit →</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+function settingsApp() {
+    return {
+        groqKey: '',
+        groqOk: {{ 'true' if ai_configured else 'false' }},
+        groqMsg: '',
+        groqMsgOk: false,
+        saving: false,
+
+        keywords: {{ keywords | tojson }},
+        newKw: '',
+        kwMsg: '',
+        kwMsgOk: false,
+
+        resumeLen: {{ resume_len }},
+        resumeMsg: '',
+        resumeMsgOk: false,
+        dragging: false,
+
+
+        init() {
+            this.groqKey = '';
+        },
+        async saveGroq() {
+            const k = this.groqKey.trim();
+            if (!k) { this.groqMsg = 'Enter an API key'; this.groqMsgOk = false; return; }
+            this.saving = true;
+            this.groqMsg = '';
+            try {
+                const r = await fetch('/api/settings/groq', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: k }),
+                });
+                const d = await r.json();
+                if (d.ok) {
+                    this.groqOk = d.configured;
+                    this.groqMsg = d.configured ? 'Key saved and connected!' : 'Saved but connection failed.';
+                    this.groqMsgOk = d.configured;
+                    if (d.configured) this.groqKey = '';
+                } else {
+                    this.groqMsg = d.error || 'Failed to save';
+                    this.groqMsgOk = false;
+                }
+            } catch {
+                this.groqMsg = 'Network error';
+                this.groqMsgOk = false;
+            }
+            this.saving = false;
+        },
+        async addKw() {
+            const kw = this.newKw.trim();
+            if (!kw) return;
+            this.saving = true;
+            this.kwMsg = '';
+            try {
+                const r = await fetch('/api/settings/keywords', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword: kw }),
+                });
+                const d = await r.json();
+                if (d.ok) {
+                    this.keywords = d.keywords;
+                    this.newKw = '';
+                    this.kwMsg = 'Keyword added';
+                    this.kwMsgOk = true;
+                } else {
+                    this.kwMsg = d.error || 'Failed to add';
+                    this.kwMsgOk = false;
+                }
+            } catch {
+                this.kwMsg = 'Network error';
+                this.kwMsgOk = false;
+            }
+            this.saving = false;
+        },
+        async removeKw(kw) {
+            this.saving = true;
+            this.kwMsg = '';
+            try {
+                const r = await fetch('/api/settings/keywords/' + encodeURIComponent(kw), { method: 'DELETE' });
+                const d = await r.json();
+                if (d.ok) {
+                    this.keywords = d.keywords;
+                    this.kwMsg = 'Keyword removed';
+                    this.kwMsgOk = true;
+                } else {
+                    this.kwMsg = d.error || 'Failed to remove';
+                    this.kwMsgOk = false;
+                }
+            } catch {
+                this.kwMsg = 'Network error';
+                this.kwMsgOk = false;
+            }
+            this.saving = false;
+        },
+        async handleFile(e) {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            await this.uploadFile(file);
+        },
+        async handleDrop(e) {
+            this.dragging = false;
+            const file = e.dataTransfer?.files?.[0];
+            if (!file) return;
+            await this.uploadFile(file);
+        },
+        async uploadFile(file) {
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                this.resumeMsg = 'Only PDF files accepted';
+                this.resumeMsgOk = false;
+                return;
+            }
+            this.saving = true;
+            this.resumeMsg = '';
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+                const r = await fetch('/api/settings/resume', { method: 'POST', body: fd });
+                const d = await r.json();
+                if (d.ok) {
+                    this.resumeLen = d.len;
+                    this.resumeMsg = 'Resume uploaded (' + d.len + ' chars extracted)';
+                    this.resumeMsgOk = true;
+                } else {
+                    this.resumeMsg = d.error || 'Upload failed';
+                    this.resumeMsgOk = false;
+                }
+            } catch {
+                this.resumeMsg = 'Network error';
+                this.resumeMsgOk = false;
+            }
+            this.saving = false;
+        },
+        async deleteResume() {
+            this.saving = true;
+            this.resumeMsg = '';
+            try {
+                const r = await fetch('/api/settings/resume', { method: 'DELETE' });
+                const d = await r.json();
+                if (d.ok) {
+                    this.resumeLen = 0;
+                    this.resumeMsg = 'Resume removed';
+                    this.resumeMsgOk = true;
+                } else {
+                    this.resumeMsg = 'Failed to remove';
+                    this.resumeMsgOk = false;
+                }
+            } catch {
+                this.resumeMsg = 'Network error';
+                this.resumeMsgOk = false;
+            }
+            this.saving = false;
+        },
+    };
+}
+</script>
+
+{% endblock %}
